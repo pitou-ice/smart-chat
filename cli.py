@@ -2,7 +2,7 @@ import os
 import cmd
 from typing import Final
 from bot import Bot
-from db import VectorDb
+# from db import VectorDb # Uncomment when RAG is implemented
 
 
 class CLI(cmd.Cmd):
@@ -12,7 +12,7 @@ class CLI(cmd.Cmd):
     prompt: Final[str] = '👤 '
     ruler: Final[str] = ''
 
-    db: Final[VectorDb] = VectorDb()
+    # db: Final[VectorDb] = VectorDb()
     bot: Final[Bot] = Bot()
 
     def do_load(self, file: str) -> None:
@@ -39,7 +39,7 @@ class CLI(cmd.Cmd):
             self.bot.stream_response(query)
 
         except Exception as e:
-            # TODO define exception types
+            # TODO define specific exceptions
             self.bot.print('Sorry, I don\'t know what happened.')
 
 
