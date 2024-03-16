@@ -1,3 +1,6 @@
+import sys
+sys.dont_write_bytecode = True # Prevent __pycache__
+
 import os
 import cmd
 from typing import Final
