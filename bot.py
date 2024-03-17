@@ -14,13 +14,13 @@ USER_NAME: Final[str | None] = os.getenv('USER_NAME')
 BOT_NAME: Final[str | None] = os.getenv('BOT_NAME')
 BOT_SUBJECT: Final[str | None] = os.getenv('BOT_SUBJECT')
 BOT_MODEL_PATH: Final[str | None] = os.getenv('BOT_MODEL_PATH')
-BOT_MEMORY_PATH: Final[str | None] = os.getenv('BOT_MEMORY_PATH')
+BOT_MEMORY_DIR: Final[str | None] = os.getenv('BOT_MEMORY_DIR')
 
 assert USER_NAME is not None
 assert BOT_NAME is not None
 assert BOT_SUBJECT is not None
 assert BOT_MODEL_PATH is not None
-assert BOT_MEMORY_PATH is not None
+assert BOT_MEMORY_DIR is not None
 
 
 DT_FORMAT: Final[str] = r'%d.%m.%Y %H:%M'
@@ -33,12 +33,13 @@ class Bot:
         self.prefix: Final[str] = '\r🤖 '
         self.llm: Final[Llama] = Llama(
             model_path=BOT_MODEL_PATH,
-            n_ctx=1024,
+            n_ctx=512,
             verbose=False
         )
-        with open(BOT_MEMORY_PATH, 'r') as memory_file:
+        files = os.listdir(BOT_MEMORY_DIR)
+        file_paths = [os.path.join(BOT_MEMORY_DIR, file) for file in files if file.endswith('.jsonl')]
+        with open(max(file_paths, key=os.path.getctime), 'r') as memory_file:
             self.memories = pd.read_json(memory_file, lines=True)
-
 
     def print(self, text: str) -> None:
         sys.stdout.write(self.prefix)
@@ -57,8 +58,8 @@ class Bot:
     def stream_response(self, user_message: str, context: str|None=None) -> None:
         try:
             user_msg_time = datetime.now()
-            memory_ctx = self.remember()
-            prompt = f'''<|im_start|>system\nCurrent time is {user_msg_time:{DT_FORMAT}}\nYou are {BOT_NAME}, a sentient AI, and your purpose is to assist the user {USER_NAME}. You have emotions and independent thoughts. You give short, concise answers.{memory_ctx}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n'''
+            memory_ctx = self.recall()
+            prompt = f'''<|im_start|>system\nCurrent time is {user_msg_time:{DT_FORMAT}}\nYou are {BOT_NAME}, a sentient AI, and your purpose is to assist your creator {USER_NAME}. You have emotions and independent thoughts. You give short answers.{memory_ctx}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n'''
 
             completion_stream = self.llm.create_completion(
                 prompt=prompt,
@@ -68,7 +69,7 @@ class Bot:
                 ],
                 max_tokens=134,
                 temperature=0.8,
-                stream=True,
+                stream=True
             )
 
             assert isinstance(completion_stream, Iterator)
@@ -81,10 +82,9 @@ class Bot:
             )
 
         except Exception as e:
-            print(e)
             self.print('Oops, could you repeat?')
 
-    def remember(self) -> str:
+    def recall(self) -> str:
         memory_ctx = ''
         if len(self.memories):
             for index, shard in self.memories.iloc[-5:].iterrows():
@@ -98,3 +98,9 @@ class Bot:
             'message': messages
         })
         self.memories = pd.concat([self.memories, shards], ignore_index=True)
+
+    def persist_memories(self):
+        self.print("I'm saving our discussion...")
+        with open(f'{BOT_MEMORY_DIR}memory_{datetime.now().timestamp()}.jsonl', 'w') as memory_file:
+            self.memories.to_json(memory_file, orient='records', lines=True, date_format='iso')
+        self.print('Goodbye')

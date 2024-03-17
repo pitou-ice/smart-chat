@@ -32,7 +32,7 @@ class CLI(cmd.Cmd):
 
     def do_bye(self, arg=None) -> None:
         '''\nExit the app.\n'''
-        self.bot.print('Goodbye')
+        self.bot.persist_memories()
         exit(0)
 
     def default(self, query: str) -> None:
