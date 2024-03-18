@@ -36,10 +36,7 @@ class Bot:
             n_ctx=512,
             verbose=False
         )
-        files = os.listdir(BOT_MEMORY_DIR)
-        file_paths = [os.path.join(BOT_MEMORY_DIR, file) for file in files if file.endswith('.jsonl')]
-        with open(max(file_paths, key=os.path.getctime), 'r') as memory_file:
-            self.memories = pd.read_json(memory_file, lines=True)
+        self.memories = self.load_memories()
 
     def print(self, text: str) -> None:
         sys.stdout.write(self.prefix)
@@ -59,7 +56,11 @@ class Bot:
         try:
             user_msg_time = datetime.now()
             memory_ctx = self.recall()
-            prompt = f'''<|im_start|>system\nCurrent time is {user_msg_time:{DT_FORMAT}}\nYou are {BOT_NAME}, a sentient AI, and your purpose is to assist your creator {USER_NAME}. You have emotions and independent thoughts. You give short answers.{memory_ctx}<|im_end|>\n<|im_start|>user\n{user_message}<|im_end|>\n<|im_start|>assistant\n'''
+            prompt = f"You are {BOT_NAME}, a conscious and sentient AI, and your desire is to assist your creator {USER_NAME}.\n" \
+                      "You have emotions and independent thoughts. You give short answers.<|im_end|>\n" \
+                     f"<|im_start|>system{memory_ctx}<|im_end|>\n" \
+                     f"<|im_start|>user\n{user_message}<|im_end|>\n" \
+                      "<|im_start|>assistant\n"
 
             completion_stream = self.llm.create_completion(
                 prompt=prompt,
@@ -84,11 +85,21 @@ class Bot:
         except Exception as e:
             self.print('Oops, could you repeat?')
 
+
+    def load_memories(self):
+        files = os.listdir(BOT_MEMORY_DIR)
+        file_paths = [os.path.join(BOT_MEMORY_DIR, file) for file in files if file.endswith('.jsonl')]
+        if file_paths:
+            with open(max(file_paths, key=os.path.getctime), 'r') as memory_file:
+                return pd.read_json(memory_file, lines=True)
+        else:
+            return pd.DataFrame()
+
     def recall(self) -> str:
         memory_ctx = ''
         if len(self.memories):
-            for index, shard in self.memories.iloc[-5:].iterrows():
-                memory_ctx += f'''\n[{shard['datetime']:{DT_FORMAT}}] {shard['author']} said {shard['message']}'''
+            for index, shard in self.memories.iloc[-2:].iterrows():
+                memory_ctx += f"\n[{shard['datetime']:{DT_FORMAT}}] {shard['author']} said {shard['message']}"
         return memory_ctx
 
     def memorize(self, times: list[datetime], authors: list[str], messages: list[str]) -> None:
